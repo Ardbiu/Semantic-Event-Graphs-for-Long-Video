@@ -1,0 +1,17 @@
+[
+  {
+    "q": "TODO: replace with a concrete question about the video (e.g., \"When does the man pick up the red bag?\")",
+    "a": "TODO: short ground-truth answer (e.g., \"around 5 seconds\")",
+    "relevant_time": 0.0
+  },
+  {
+    "q": "TODO: another question (e.g., \"Who enters the frame after the dog appears?\")",
+    "a": "TODO: answer (e.g., \"the man\")",
+    "relevant_time": 0.0
+  },
+  {
+    "q": "TODO: add as many QA pairs as needed",
+    "a": "TODO: short answer",
+    "relevant_time": 0.0
+  }
+]
