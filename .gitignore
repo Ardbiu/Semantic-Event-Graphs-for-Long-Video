@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+*.mp4
+*.pt
+event_log.json
+video_objects.json
+tracked_output.mp4
+test_video.mp4
+interaction_timeline.png
