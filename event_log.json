@@ -1,0 +1,30 @@
+[
+  {
+    "timestamp": 9.466666666666667,
+    "frame": 284,
+    "type": "START",
+    "subject": "person-2",
+    "object": "cup-103"
+  },
+  {
+    "timestamp": 11.233333333333333,
+    "frame": 337,
+    "type": "END",
+    "subject": "person-2",
+    "object": "cup-103"
+  },
+  {
+    "timestamp": 11.9,
+    "frame": 357,
+    "type": "START",
+    "subject": "person-2",
+    "object": "cup-103"
+  },
+  {
+    "timestamp": 12.666666666666666,
+    "frame": 380,
+    "type": "END",
+    "subject": "person-2",
+    "object": "cup-103"
+  }
+]
