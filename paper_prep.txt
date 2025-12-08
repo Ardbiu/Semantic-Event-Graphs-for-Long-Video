@@ -1,0 +1,191 @@
+Title: Semantic Event Graphs for Long-Form Video Question Answering
+
+1. Motivation and Problem Statement
+   - Long videos contain thousands of frames; feeding entire clips into vision-language models (VLMs) is prohibitively expensive (tens of thousands of tokens per query) and often unnecessary.
+   - We seek a structured intermediate representation that keeps the temporal logic required to answer questions while enabling >90% token reduction.
+   - Target scenario: automatically answer long-horizon questions about objects/people and their interactions in household-style egocentric videos.
+
+2. Overview of Pipeline
+   1. Video → Detection/Tracking: run YOLOv11 (Ultralytics) with re-ID enabled to obtain per-frame object tracks.
+   2. Detection logs → Temporal Scene Graph (TSG): aggregate track interactions into START/END events with timestamps and track IDs.
+   3. Query-Time Pruning: build a MultiDiGraph whose nodes are subject/object identifiers ("person-42899") and edges are events; prune the graph using anchor detection and local expansion seeded by the natural-language query.
+   4. LLM Answering: turn the pruned timeline into a textual narrative, prompt Gemini 2.5 Flash, and obtain an answer plus token counts and latency.
+   5. LLM Judging: use a second Gemini call (`llm_judge.py`) to grade the answer semantically against ground truth, yielding accuracy.
+
+3. Scene-Graph Extraction Details
+   - Device selection hierarchy: MPS (Apple), CUDA, CPU. Model weights loaded from `data/models/yolo11s.pt` when available, else downloaded.
+   - Tracking (`YOLO.track`) yields bounding boxes `b = (x1, y1, x2, y2)` and identities `id`.
+   - Each detection is normalized to:
+       det = { "id": track_id, "label": class_name, "bbox": (x1, y1, x2, y2) }.
+   - Processor hyperparameters: `distance_threshold=δ` (100 px default, 200 px for batch), `end_buffer=β=5` frames, `focus_class="person"` (only log pairs touching a person).
+   - Mathematical formulation:
+       * Centroid of detection i: \( c_i = \left(\frac{x_{1,i}+x_{2,i}}{2}, \frac{y_{1,i}+y_{2,i}}{2}\right) \).
+       * Pairwise proximity: \( d_{ij} = \|c_i - c_j\|_2 \).
+       * Interaction state S_{ij}(t) ∈ {inactive, active}. Transition rules:
+            - START when S_{ij}(t-1)=inactive and \(d_{ij} \le δ\) (with focus-class constraint satisfied).
+            - Maintain active state while detections persist; set `missing_frames_{ij}` to 0 each observed frame.
+            - END when `missing_frames_{ij} > β`, i.e., pair absent for β consecutive frames.
+       * Timestamp assignment: `timestamp = frame_idx / fps` (fallback to frame count if fps unknown).
+   - Pseudo-code (SceneGraphProcessor.update):
+       ```
+       function UPDATE(detections, timestamp, frame_idx):
+           processed ← []
+           for det in detections:
+               if det.id is None: continue
+               det.centroid ← centroid(det.bbox)
+               processed.append(det)
+           present_pairs ← ∅
+           for each unordered pair (i,j) in processed:
+               if focus_class not in {label_i, label_j}: continue
+               if ||ci - cj||2 > δ: continue
+               (a,b) ← order_pair(i,j)   # person-first normalization
+               key ← (a.id, b.id)
+               present_pairs.add(key)
+               if key ∉ active:
+                   active[key] ← InteractionState(start_ts=timestamp, start_frame=frame_idx, …)
+                   emit START event
+               else:
+                   active[key].last_seen_ts ← timestamp
+                   active[key].missing_frames ← 0
+           for key, state in active:
+               if key ∉ present_pairs:
+                   state.missing_frames += 1
+                   if state.missing_frames > β:
+                       emit END event
+                       delete active[key]
+           return list(events_emitted_this_frame)
+       ```
+   - Events logged as dictionaries:
+       { "timestamp": t, "frame": f, "type": "START"/"END", "subject": "person-1", "object": "cup-3" }.
+   - Side products: annotated video (`outputs/tracked_output.mp4`), detection JSON (`outputs/video_objects.json`), interaction timeline figure (`outputs/interaction_timeline.png`).
+
+4. Mathematical Foundations
+   - Intersection over Union for tracker association (`graph_memory.py`):
+       IoU(b1, b2) = Area(b1 ∩ b2) / Area(b1 ∪ b2).
+       where Area(b) = (x2 - x1)(y2 - y1). IoU used as matching cost with threshold τ = 0.3.
+   - Distance-based event trigger:
+       d(a,b) = sqrt( (cax - cbx)^2 + (cay - cby)^2 ).
+       START emitted when d ≤ δ and pair inactive; END emitted when d > δ for > end_buffer frames.
+   - Query/event lexical relevance (TemporalSceneGraph):
+       Given question tokens Q and event tokens E,
+       score(Q,E) = |Q ∩ E| / |Q|.
+       Used to rank events when no anchors detected.
+   - Compression ratio:
+       compression = 1 - (#events_retrieved / #events_total).
+       Example: retrieving 30 events from a 350-event log → 91.4% token reduction reported in README table.
+
+5. Temporal Scene Graph (TSG) Construction
+   - Graph: NetworkX MultiDiGraph, nodes = unique subjects/objects, edges = directed event triples with attributes {timestamp, frame, interaction_type, raw_event}.
+   - Anchors:
+       1. Specific matches: node IDs explicitly mentioned in question text (exact string containment).
+       2. Generic fallbacks: node classes (prefix before '-') if no specific ID of same class is already anchored.
+   - Expansion: include every edge whose source or target is in the anchor set.
+   - Fallback retrieval: when anchor set empty, compute Jaccard between question tokens and event textual tokens, include events with score ≥ 0.1.
+   - Deduplication: JSON-string hashing to remove repeated events.
+
+6. Algorithms (Pseudo-code)
+
+   Algorithm 1: Video-to-Event Extraction
+   ----------------------------------------------------
+   INPUT: video_path, yolo_weights, thresholds
+   OUTPUT: event_log.json, video_objects.json, tracked_output.mp4
+   1: cap ← cv2.VideoCapture(video_path)
+   2: model ← YOLO(yolo_weights); model.to(device)
+   3: while cap.read() returns frame_t:
+   4:     detections ← model.track(frame_t, persist=True, conf=0.15, imgsz=960)
+   5:     for each detection:
+   6:         normalize bbox → (x1,y1,x2,y2), compute centroid
+   7:     events_t ← SceneGraphProcessor.update(detections, timestamp_t, frame_idx)
+   8:     append events_t to log; render result.plot() to VideoWriter
+   9: cap.release(); writer.release()
+  10: SceneGraphProcessor.save_events_to_json(); generate timeline plot
+
+   Algorithm 2: Temporal Scene Graph Pruning
+   ----------------------------------------------------
+   INPUT: event_log.json, natural-language query q
+   OUTPUT: relevant_events, compression_ratio
+   1: build MultiDiGraph G from events (nodes=subj/obj, edges include raw_event metadata)
+   2: anchors_specific ← { node | node string in q }
+   3: anchors_generic ← { node | class(node) in q and class not covered by anchors_specific }
+   4: anchors ← anchors_specific ∪ anchors_generic
+   5: if anchors ≠ ∅:
+   6:     relevant ← { edge.raw_event | edge incident to anchors }
+   7: else:
+   8:     for each event e:
+   9:         compute score = |tokens(q) ∩ tokens(e)| / |tokens(q)|
+  10:        if score ≥ τ_jaccard append e to relevant
+  11: deduplicate relevant via hashing
+  12: compression ← 1 - |relevant| / |all_events|
+  13: return relevant, compression
+
+   Algorithm 3: QA Inference and Judging
+   ----------------------------------------------------
+   INPUT: question q, relevant_events, ground_truth a
+   OUTPUT: model_answer, token_count, latency, correctness
+   1: narrative ← join_str("[{t:.1f}s] subj type obj" for each event in relevant_events)
+   2: prompt ← instructions + narrative + q
+   3: response ← Gemini.generate_content(prompt)
+   4: token_count ← model.count_tokens(prompt)
+   5: correctness ← evaluate_accuracy(q, a, response.text)
+   6: return response.text, token_count, latency, correctness
+
+7. Data Assets
+   - Raw videos: `data/videos/test_video.mp4` plus additional clips (not committed; instructions expect user-provided MP4s).
+   - YOLO weights: `data/models/yolo11s.pt` (medium model for better small-object recall).
+   - Event logs: located in `outputs/logs/*.json` (e.g., `test_video_events.json` through `test_video5_events.json`), each containing hundreds of START/END interactions.
+   - Benchmark QA pairs: `outputs/benchmark_data.json` (LLM-generated long-horizon question/answer pairs per video).
+   - Evaluation outputs: `outputs/final_results.json` (contains every question, predicted answers, token counts, timing, and correctness for Short, Long, HyperGraph strategies); `outputs/figure_1_teaser.png` visualizes pruning for the paper.
+
+8. Experimental Setup
+   - Hardware/Runtime: PyTorch w/ CUDA or MPS if available; fallback CPU.
+   - Detection/tracking: YOLOv11s via Ultralytics 8.3.235, `persist=True` to reuse track IDs.
+   - Interaction parameters: distance thresholds 100–200 px depending on script, buffer of 5 frames before emitting END.
+   - LLM: Gemini 2.5 Flash (fallback 1.5 Flash) for both answer generation and judging. API key provided via `GEMINI_API_KEY` environment variable.
+   - Memory accounting: assume 0.75 MB per sampled frame for VLM baselines; GraphMemory size measured via file size (MB).
+   - Baselines:
+       * Short Context: last 30 seconds of event log.
+       * Long Context: entire event log (full tokens).
+       * HyperGraph: pruned set returned by Algorithm 2.
+   - Metrics: accuracy (LLM-judged), average tokens, average response time, compression ratio.
+
+9. Results Summary
+   - README experiment (WACV submission):
+       * Short Context (30s window): ~1,030 tokens, 2.5% accuracy.
+       * Long Context (full log): ~40,390 tokens, 62.5% accuracy.
+       * HyperGraph: ~3,466 tokens, 65.0% accuracy, 91.4% cost reduction.
+   - `outputs/final_results.json` observations:
+       * Short context often missing entity-specific interactions (Gemini responds “not in log”), leading to 0 accuracy on detailed timeline queries.
+       * Long context and HyperGraph both solve fine-grained temporal math questions (durations, ordering). HyperGraph usually matches Long accuracy while cutting tokens by >85% (e.g., sample question requiring 4 relevant events: HyperGraph consumed ~600 tokens vs Long ~5k).
+       * HyperGraph sometimes under-performs when anchor detection misses classes (e.g., query referencing unseen ID results in fallback lexical match retrieving insufficient context).
+
+10. Discussion and Reasoning
+   - Advantages:
+       * Structured events capture temporal ordering explicitly, letting the LLM focus on reasoning rather than scanning raw frames.
+       * Anchor prioritization ensures entity-specific questions include exact track IDs before falling back to generic classes.
+       * Graph-based pruning is query-aware: edges near the anchors survive, background clutter is removed.
+       * Distance-threshold interactions generalize beyond simple contact; focus_class makes logs human-centric.
+   - Limitations:
+       * Hard-coded lexical anchor detection may miss synonyms or pronouns; future work may incorporate embedding search.
+       * Interaction detection relies on Euclidean distance in pixel space—needs normalization for varying resolutions or depth cues.
+       * LLM judge currently binary; more nuanced scoring (partial credit) could be derived from GEMINI via confidence prompts.
+       * Frame sampling baselines are placeholders; actual frame retrieval must be implemented to compare against vision-conditioned models fairly.
+
+11. Future Work Ideas
+   - Normalize distances and bounding boxes to [0,1] coordinates to make δ resolution-agnostic.
+   - Incorporate higher-order graph reasoning (multi-hop chains, causal edges) before prompting the LLM.
+   - Replace lexical scoring with sentence-transformer embeddings for fallback retrieval.
+   - Extend SceneGraphProcessor to capture attributes (e.g., object state changes) and not just proximity.
+   - Automate short/long baseline frame extraction using cv2 + CLIP/VLM captioning.
+   - Support real-time streaming updates and incremental pruning for interactive video QA.
+
+12. Reproducibility Checklist
+   - Code entry points:
+       * `python scripts/process_video.py` – single-video processing, generates `outputs/event_log.json`.
+       * `python scripts/batch_process.py` – batch event extraction (`outputs/logs/*.json`).
+       * `python scripts/generate_benchmark.py` – produce QA dataset (requires GEMINI).
+       * `python scripts/run_full_evaluation.py` – run Short/Long/HyperGraph experiments, outputs `outputs/final_results.json`.
+   - Configuration knobs: distance thresholds, focus class, YOLO weights path, number of sampled frames for baselines, top-K events for HyperGraph (default 5).
+   - Required files: YOLO weights in `data/models/`, MP4 videos in `data/videos/`, environment variable `GEMINI_API_KEY`.
+   - Outputs to cite in the paper: `outputs/figure_1_teaser.png`, `interaction_timeline.png`, `final_results.json`, `benchmark_data.json`.
+
+This document captures the necessary narrative, equations, pseudo-code, data inventory, and experimental observations needed to draft the workshop paper.
