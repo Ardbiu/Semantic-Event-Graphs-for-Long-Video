@@ -1,15 +1,19 @@
-import cv2
 import glob
 import os
 import torch
+import sys
+# Allow importing from src (root directory)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from ultralytics import YOLO
-from graphmemory.scene_graph_processor import SceneGraphProcessor
+from src.graphmemory.scene_graph_processor import SceneGraphProcessor
 
 def batch_process():
     # 1. Setup
-    video_files = glob.glob("videos/*.mp4")
+    video_path_pattern = os.path.join(os.path.dirname(__file__), "../data/videos/*.mp4")
+    video_files = glob.glob(video_path_pattern)
     if not video_files:
-        print("No videos found in videos/ folder. Please add .mp4 files.")
+        print(f"No videos found in {video_path_pattern}. Please add .mp4 files.")
         return
 
     # Device selection (Mac/MPS support)
@@ -17,21 +21,29 @@ def batch_process():
     print(f"Using device: {device}")
     
     # Initialize YOLO
+    model_path = os.path.join(os.path.dirname(__file__), "../data/models/yolo11n.pt")
+    # If using local model path, ensure it exists or use simple name if relying on ultralytics cache. 
+    # But we moved it to data/models, so let's point there.
     try:
-        model = YOLO('yolo11n.pt') 
+        if os.path.exists(model_path):
+            model = YOLO(model_path)
+        else:
+             # Fallback to download or cache if file missing
+            model = YOLO('yolo11n.pt')
     except Exception as e:
         print(f"Error loading YOLO model: {e}")
         return
 
     # Ensure logs dir exists
-    os.makedirs("logs", exist_ok=True)
+    logs_dir = os.path.join(os.path.dirname(__file__), "../outputs/logs")
+    os.makedirs(logs_dir, exist_ok=True)
 
     # 2. Iterate Videos
     total_videos = len(video_files)
     for idx, video_path in enumerate(video_files):
         video_filename = os.path.basename(video_path)
         video_name_no_ext = os.path.splitext(video_filename)[0]
-        log_path = os.path.join("logs", f"{video_name_no_ext}_events.json")
+        log_path = os.path.join(logs_dir, f"{video_name_no_ext}_events.json")
         
         print(f"Processing video {idx + 1}/{total_videos}: {video_filename}...")
         

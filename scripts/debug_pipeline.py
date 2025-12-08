@@ -1,7 +1,11 @@
 import json
 import os
+import sys
 import glob
-from temporal_graph import TemporalSceneGraph
+
+# Allow importing from src
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from src.temporal_graph import TemporalSceneGraph
 
 def events_to_narrative(events):
     narrative = []
@@ -15,7 +19,8 @@ def check_logs():
     print("1. LOG FILE ANALYSIS")
     print("=" * 60)
     
-    log_files = glob.glob("logs/*_events.json")
+    log_dir = os.path.join(os.path.dirname(__file__), "../outputs/logs")
+    log_files = glob.glob(os.path.join(log_dir, "*_events.json"))
     for log_path in sorted(log_files):
         with open(log_path, 'r') as f:
             events = json.load(f)
@@ -38,7 +43,8 @@ def debug_evaluation_logic():
     print("=" * 60)
     
     # Load benchmark
-    with open("benchmark_data.json", 'r') as f:
+    benchmark_path = os.path.join(os.path.dirname(__file__), "../outputs/benchmark_data.json")
+    with open(benchmark_path, 'r') as f:
         benchmark_data = json.load(f)
     
     # Find first valid question
@@ -56,9 +62,9 @@ def debug_evaluation_logic():
     if not test_question:
         print("  ERROR: No valid questions found!")
         return
-    
+
     source_log = test_item["source_log"]
-    log_path = os.path.join("logs", source_log)
+    log_path = os.path.join(os.path.dirname(__file__), "../outputs/logs", source_log)
     
     print(f"  Source Log: {source_log}")
     print(f"  Question: {test_question['q'][:80]}...")
@@ -103,7 +109,8 @@ def check_pruning():
     print("=" * 60)
     
     # Load benchmark
-    with open("benchmark_data.json", 'r') as f:
+    benchmark_path = os.path.join(os.path.dirname(__file__), "../outputs/benchmark_data.json")
+    with open(benchmark_path, 'r') as f:
         benchmark_data = json.load(f)
     
     # Find first valid question
@@ -119,7 +126,7 @@ def check_pruning():
             break
     
     source_log = test_item["source_log"]
-    log_path = os.path.join("logs", source_log)
+    log_path = os.path.join(os.path.dirname(__file__), "../outputs/logs", source_log)
     
     tsg = TemporalSceneGraph()
     tsg.load_from_json(log_path)

@@ -1,9 +1,13 @@
 import json
 import os
 import time
+import sys
+# Allow importing from src (root directory)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import google.generativeai as genai
-from temporal_graph import TemporalSceneGraph
-from llm_judge import evaluate_accuracy
+from src.temporal_graph import TemporalSceneGraph
+from src.llm_judge import evaluate_accuracy
 
 # Setup API
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -111,11 +115,12 @@ def run_hypergraph(graph, question):
     return generate_answer(narrative, question)
 
 def main():
-    if not os.path.exists("benchmark_data.json"):
-        print("benchmark_data.json not found.")
+    benchmark_path = os.path.join(os.path.dirname(__file__), "../outputs/benchmark_data.json")
+    if not os.path.exists(benchmark_path):
+        print(f"benchmark_data.json not found at {benchmark_path}")
         return
 
-    with open("benchmark_data.json", "r") as f:
+    with open(benchmark_path, "r") as f:
         benchmark_data = json.load(f)
 
     # Helper to load graph cache
@@ -135,7 +140,7 @@ def main():
     for item in benchmark_data:
         source_log = item["source_log"]
         qa_pairs = item["qa_pairs"]
-        log_path = os.path.join("logs", source_log)
+        log_path = os.path.join(os.path.dirname(__file__), "../outputs/logs", source_log)
         
         if not os.path.exists(log_path):
             print(f"Log file not found: {log_path}, skipping...")
@@ -198,7 +203,7 @@ def main():
             results.append(row)
 
     # Save Detailed Results
-    with open("final_results.json", "w") as f:
+    with open(os.path.join(os.path.dirname(__file__), "../outputs/final_results.json"), "w") as f:
         json.dump(results, f, indent=2)
 
     # Print Summary Table

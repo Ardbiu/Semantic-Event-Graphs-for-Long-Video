@@ -28,9 +28,10 @@ def generate_benchmark():
     configure_genai()
     model = get_model()
     
-    log_files = glob.glob("logs/*_events.json")
+    log_dir = os.path.join(os.path.dirname(__file__), "../outputs/logs")
+    log_files = glob.glob(os.path.join(log_dir, "*_events.json"))
     if not log_files:
-        print("No log files found in logs/. Run batch_process.py first.")
+        print(f"No log files found in {log_dir}. Run batch_process.py first.")
         return
 
     benchmark_data = []
@@ -88,7 +89,7 @@ def generate_benchmark():
             print(f"  Error generating benchmark for {filename}: {e}")
 
     # Save Benchmark
-    output_file = "benchmark_data.json"
+    output_file = os.path.join(os.path.dirname(__file__), "../outputs/benchmark_data.json")
     with open(output_file, "w") as f:
         json.dump(benchmark_data, f, indent=2)
     

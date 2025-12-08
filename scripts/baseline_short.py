@@ -30,7 +30,12 @@ def main():
         return
 
     # 1. Load Data
-    with open("event_log.json", "r") as f:
+    log_path = os.path.join(os.path.dirname(__file__), "../outputs/event_log.json")
+    if not os.path.exists(log_path):
+        # try legacy path
+        log_path = os.path.join(os.path.dirname(__file__), "../data/event_log.json")
+
+    with open(log_path, "r") as f:
         events = json.load(f)
         
     # 2. Filter Last 30 Seconds

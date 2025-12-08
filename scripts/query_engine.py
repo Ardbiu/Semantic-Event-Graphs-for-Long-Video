@@ -1,7 +1,13 @@
 import google.generativeai as genai
 import os
 import json
-from temporal_graph import TemporalSceneGraph
+import time
+import sys
+
+# Allow importing from src
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from src.temporal_graph import TemporalSceneGraph
 
 # Setup API
 api_key = os.environ.get("GEMINI_API_KEY")
