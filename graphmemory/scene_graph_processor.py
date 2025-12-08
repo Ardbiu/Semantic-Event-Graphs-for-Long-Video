@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
-
 
 @dataclass
 class InteractionState:
@@ -137,6 +135,12 @@ class SceneGraphProcessor:
         """
         Create a simple Gantt-style chart of interactions using START/END events.
         """
+        # Lazy import to avoid heavy matplotlib initialization during main loop.
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
         # Build segments from event log.
         open_interactions: Dict[Tuple[str, str], dict] = {}
         segments: List[Tuple[str, float, float]] = []

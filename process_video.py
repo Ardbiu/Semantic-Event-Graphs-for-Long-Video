@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import cv2
+import torch
 from ultralytics import YOLO
 
 from graphmemory.scene_graph_processor import SceneGraphProcessor
@@ -16,8 +17,18 @@ def main():
     if not input_path.exists():
         sys.exit(f"Input video not found: {input_path}")
 
+    # Choose the best available device (MPS on Apple Silicon, CUDA if available).
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+    print(f"Using device: {device}")
+
     # Use a slightly larger model for better small-object performance.
     model = YOLO("yolo11s.pt")
+    model.to(device)
 
     cap = cv2.VideoCapture(str(input_path))
     if not cap.isOpened():

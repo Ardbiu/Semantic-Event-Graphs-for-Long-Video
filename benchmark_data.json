@@ -1,0 +1,182 @@
+[
+  {
+    "source_log": "test_video4_events.json",
+    "qa_pairs": [
+      {
+        "q": "What was the total duration that person-42899 spent interacting with cup-42854 before person-42899 started its first interaction with bottle-42968?",
+        "a": "0.933 seconds."
+      },
+      {
+        "q": "Calculate the total duration person-42899 was interacting with person-42914. Then, what was the time difference between the timestamp when person-42899 ended its last interaction with person-42914 and when it began its first interaction with bottle-42968?",
+        "a": "5.633 seconds."
+      },
+      {
+        "q": "What was the total accumulated interaction time of person-42996 with objects having the ID '42988' (irrespective of their specific object type) before person-42988 (as a subject) began its first interaction with dining table-43030?",
+        "a": "0.767 seconds."
+      },
+      {
+        "q": "What is the elapsed time between person-43030 finishing its last interaction with spoon-43013 and person-43013 (as a subject) initiating its first interaction with person-43084?",
+        "a": "2.300 seconds."
+      },
+      {
+        "q": "After person-47507 finished its last recorded interaction with dog-47676, what was the earliest timestamp at which person-47691 began an interaction where dog-47507 was the object?",
+        "a": "709.0 seconds."
+      },
+      {
+        "q": "How many unique dog objects did person-47746 (as a subject) interact with from the beginning of its first interaction with dog-47772 until the end of its last interaction with dog-47799?",
+        "a": "3 unique dog objects."
+      },
+      {
+        "q": "What was the total time person-48126 (as a subject) interacted with motorcycle-48186 (as an object) during any period that occurred strictly after person-48186 (as a subject) first interacted with person-48126?",
+        "a": "1.367 seconds."
+      },
+      {
+        "q": "At the exact timestamp when person-48974 first started interacting concurrently with both person-49001 and tv-48970, how many objects was person-42899 actively interacting with?",
+        "a": "0 objects."
+      },
+      {
+        "q": "Which person, person-42899 or person-44550, spent more total time interacting with a 'cup' (for person-42899) or a 'bowl' (for person-44550), and what was the difference in their total interaction times?",
+        "a": "person-44550 interacted 3.633 seconds longer with bowl-44542 than person-42899 with cup-42854."
+      },
+      {
+        "q": "What was the longest single continuous interaction duration recorded for any person with an object of type 'dog'? How much longer or shorter was this compared to person-42863's entire interaction with person-42891?",
+        "a": "The longest single continuous interaction with a 'dog' object was 0.667 seconds, which is 0.367 seconds longer than person-42863's interaction with person-42891."
+      }
+    ]
+  },
+  {
+    "source_log": "test_video_events.json",
+    "qa_pairs": [
+      {
+        "q": "person-49425 started interacting with refrigerator-49438 at 30.363666666666663. What was the last event related to refrigerator-49438 in the entire log, and at what timestamp did it occur?",
+        "a": "The last event related to refrigerator-49438 was person-49827 ending interaction at 92.717625."
+      },
+      {
+        "q": "What object did person-49827 interact with first (as a subject) and what object did person-49827 interact with last (as a subject), and what was the time difference between the start of the first interaction and the end of the last interaction?",
+        "a": "person-49827 first interacted with refrigerator-49438 (START at 61.06099999999999) and last interacted with refrigerator-50390 (END at 132.09029166666664). The time difference is 71.02929166666665 seconds."
+      },
+      {
+        "q": "On what object did person-52069 perform its very first START action in the log, and how much time elapsed until person-52069 next initiated a START action with a *different* car object, specifically car-52206?",
+        "a": "person-52069 first started interacting with car-52084 at 212.79591666666664. The time elapsed until person-52069 started interacting with car-52206 at 233.56666666666666 was 20.77075 seconds."
+      },
+      {
+        "q": "From the moment person-53703 first initiated an action with microwave-53832 at 299.50754166666667, how many different microwaves did person-53703 subsequently initiate interaction with before engaging with microwave-56157 at 343.6766666666666? List their IDs and start timestamps.",
+        "a": "person-53703 initiated interaction with 4 different microwaves before microwave-56157: microwave-53961 (300.3417083333333), microwave-54422 (309.7260833333333), microwave-54493 (311.14416666666665), and microwave-54719 (316.1074583333333)."
+      },
+      {
+        "q": "What is the total duration that refrigerator-49438 was involved in any START or END event, from its first appearance at 30.363666666666663 to its last appearance at 92.717625 in the log?",
+        "a": "The total duration from refrigerator-49438's first event (30.363666666666663) to its last event (92.717625) is 62.35395833333333 seconds."
+      },
+      {
+        "q": "person-49130 initiated interaction with laptop-49184 at 6.005999999999999. Later, at 174.3408333333333, person-50972 initiated interaction with laptop-50966. What is the total count of distinct laptop-XXXXX objects that person-49130 interacted with *before* the first interaction of person-50972 with laptop-50966?",
+        "a": "person-49130 interacted with 3 distinct laptop-XXXXX objects (laptop-49180, laptop-49181, laptop-49184) before person-50972 first interacted with laptop-50966."
+      },
+      {
+        "q": "Considering person-52069's interactions where another person is the *object* (e.g., person-52069 START person-XXXXX), how many *unique* other people did person-52069 initiate interaction with from the very first such event (at 213.37983333333332) until person-52069 ended its very last interaction with person-52181 (at 230.7722083333333)?",
+        "a": "Between the first START interaction with person-52089 at 213.37983333333332 and the END interaction with person-52181 at 230.7722083333333, person-52069 initiated interaction with 10 unique other people (person-52089, person-52091, person-52084, person-52101, person-52122, person-52124, person-52143, person-52155, person-52165, person-52181)."
+      },
+      {
+        "q": "What was the longest continuous duration (START to END) of person-52249 interacting with *any* object of type 'person', across the entire log?",
+        "a": "The longest continuous duration person-52249 interacted with an object of type 'person' was 1.001 seconds, with person-52280 (from 246.5379583333333 to 247.5389583333333)."
+      },
+      {
+        "q": "From person-58457's first interaction with a potted plant (potted plant-58456 at 443.81837499999995), what is the longest gap in time during which person-58457 did not engage in any START or END action with *any* object of type 'potted plant'?",
+        "a": "The longest gap in time during which person-58457 did not interact with any object of type 'potted plant' was 6.67333333333336 seconds. This gap occurred between the end of interaction with potted plant-58479 at 445.8620833333333 and the start of interaction with potted plant-58507 at 452.53541666666666."
+      },
+      {
+        "q": "What is the total combined duration that person-59364 spent in START interactions with tv-59116 across all its distinct occurrences (defined by a START followed by an END for the same subject-object pair) in the log?",
+        "a": "person-59364 spent a total of 41.9585833333335 seconds in START interactions with tv-59116."
+      }
+    ]
+  },
+  {
+    "source_log": "test_video5_events.json",
+    "qa_pairs": [
+      {
+        "q": "What is the total time difference between the very first recorded interaction with any 'refrigerator' object and the very last recorded interaction with any 'refrigerator' object?",
+        "a": "The first 'refrigerator' interaction starts at 2.08 (person-35776 with refrigerator-35804). The last 'refrigerator' interaction ends at 443.56 (person-41023 with refrigerator-40775). The total time difference is 441.48 seconds."
+      },
+      {
+        "q": "Which specific 'oven' object (by its full ID) was interacted with by the highest number of distinct people, and what was the timestamp of its very first interaction?",
+        "a": "The oven-39195 was interacted with by 4 distinct people (person-39183, person-39219, person-39231, person-39244). Its very first interaction was at timestamp 332.08."
+      },
+      {
+        "q": "Calculate the total cumulative duration, in seconds, that 'person-41023' spent interacting with any object of type 'fork' across all their recorded 'fork' interactions.",
+        "a": "Person-41023 interacted with forks as follows: fork-41300 (454.2-454.64 = 0.44s), fork-41361 (455.88-456.76 = 0.88s), fork-41475 (459.72-460.16 = 0.44s), fork-41503 (461.44-461.8 = 0.36s), fork-41509 (461.56-461.92 = 0.36s), and another instance of fork-41509 (462.08-462.92 = 0.84s). The total cumulative duration is 3.32 seconds."
+      },
+      {
+        "q": "What is the time difference between the first instance of any person interacting with a 'cake' and the last instance of any person interacting with a 'cake'?",
+        "a": "The first 'cake' interaction starts at 2.32 (person-35826 with cake-35828). The last 'cake' interaction ends at 159.36 (person-36948 with cake-37919). The total time difference is 157.04 seconds."
+      },
+      {
+        "q": "Identify the pair of people involved in the single longest continuous 'person-to-person' interaction (START to END, where no other event involving either of those two specific people occurs between the START and END timestamps of their interaction), and state its duration.",
+        "a": "The longest continuous 'person-to-person' interaction occurred between person-38111 and person-38123, starting at 186.32 and ending at 187.92. The duration of this interaction was 1.6 seconds."
+      },
+      {
+        "q": "Considering all recorded 'fork' objects (across all IDs), what is the sum of the durations of all individual 'fork' interactions?",
+        "a": "The durations are: 0.44s (fork-41300), 0.88s (fork-41361), 0.44s (fork-41475), 0.36s (fork-41503), 0.36s (fork-41509 first instance), 0.84s (fork-41509 second instance), 0.56s (fork-41613), 0.44s (fork-41615). The total combined duration is 4.32 seconds."
+      },
+      {
+        "q": "From the first recorded instance of any person interacting with a 'cat' to the last recorded instance of any person interacting with a 'cat', what is the overall time span?",
+        "a": "The first 'cat' interaction starts at 275.68 (person-38677 with cat-38681). The last 'cat' interaction ends at 647.56 (person-42570 with cat-42563). The overall time span is 371.88 seconds."
+      },
+      {
+        "q": "What is the latest timestamp at which 'person-42346' ceased interacting (an 'END' event) with any other 'person'?",
+        "a": "The latest timestamp at which person-42346 ended an interaction with another person was 627.52 (ending interaction with person-42439)."
+      },
+      {
+        "q": "Determine the earliest timestamp when at least two *different* people were simultaneously interacting with *different* 'tv' objects.",
+        "a": "Person-36500 started interacting with tv-36492 at 91.48. Person-36506 started interacting with tv-36493 at 91.6. Both interactions were ongoing at 91.6, involving different people and different TV IDs. The earliest timestamp for this simultaneous interaction is 91.6."
+      },
+      {
+        "q": "Which person (by ID) was the first to initiate an interaction with an object of type 'toothbrush', and what was the final timestamp that *this specific person* ceased interacting with *any* object of type 'toothbrush'?",
+        "a": "The first person to initiate an interaction with a 'toothbrush' was person-41023, starting at 458.6 with toothbrush-41426. The final timestamp that person-41023 ceased interacting with any 'toothbrush' was 459.08 (ending interaction with toothbrush-41426)."
+      }
+    ]
+  },
+  {
+    "source_log": "test_video3_events.json",
+    "qa_pairs": [
+      {
+        "q": "Person-11 began interacting with 'bed-1' at timestamp 14.781433333333334. Later in the log, after 'person-11' initiated an interaction with 'person-52' at timestamp 22.455766666666666, 'person-52' then started an interaction with which specific object at timestamp 28.8288?",
+        "a": "person-52 started interacting with 'bed-132'."
+      },
+      {
+        "q": "At timestamp 19.152466666666665, 'person-1' began interacting with 'bed-11'. After 'person-1' ceased all its recorded interactions with 'bed-11', what was the *first subject* that initiated an interaction with 'bed-11', and at what timestamp did this initiation occur?",
+        "a": "The last interaction of 'person-1' with 'bed-11' ended at 21.988633333333333. The first subject to initiate an interaction with 'bed-11' after this was 'person-52' at timestamp 22.555866666666667."
+      },
+      {
+        "q": "At timestamp 29.262566666666668, 'person-140' started interacting with 'bed-132'. Considering all interactions of 'person-140' in the log, what was the *last object* it interacted with, and at what timestamp did that interaction end?",
+        "a": "'person-140' last interacted with 'bed-149', ending at timestamp 33.80043333333333."
+      },
+      {
+        "q": "The object 'cell phone-1805' had its first recorded interaction initiated by 'person-1808' at timestamp 254.02043333333333. After this initial event, what was the *last person* in the log to initiate an interaction with 'cell phone-1805', and what was the timestamp of that initiation?",
+        "a": "The last person to initiate an interaction with 'cell phone-1805' was 'person-1899' at timestamp 273.53993333333335."
+      },
+      {
+        "q": "When 'person-539' first appeared in the log at timestamp 83.51676666666667, it was interacting with 'person-502'. What was the *final object* that 'person-539' interacted with across the entire log, and at what timestamp did that specific interaction end?",
+        "a": "The final object 'person-539' interacted with was 'bed-703', and that interaction ended at timestamp 105.57213333333334."
+      },
+      {
+        "q": "At timestamp 304.30400000000003, 'person-2175' started interacting with 'chair-2252'. Later, 'person-2175' also interacted directly with 'person-2252'. What was the *last type of object* that 'person-2175' interacted with, and when did this final interaction end?",
+        "a": "The last type of object 'person-2175' interacted with was a 'person' (specifically 'person-2252'), and this interaction ended at timestamp 307.8408666666667."
+      },
+      {
+        "q": "At timestamp 325.0247, 'person-3161' initiated an interaction with 'person-3162'. This marked the beginning of several concurrent interactions involving 'person-3161'. What was the *final event* recorded for 'person-3161' in the entire log, including its type, subject, and object?",
+        "a": "The final event for 'person-3161' was of type 'END', with subject 'person-3161' and object 'person-3195', occurring at timestamp 326.2259."
+      },
+      {
+        "q": "At timestamp 342.90923333333336, 'person-4045' initiated an interaction with 'laptop-4051'. Following this, 'person-4045' had several other interactions involving laptops. What was the *last unique laptop object* that 'person-4045' initiated an interaction with, and what was the timestamp of that specific 'START' event?",
+        "a": "The last unique laptop object 'person-4045' initiated an interaction with was 'laptop-4233', and this initiation occurred at timestamp 343.50983333333335."
+      },
+      {
+        "q": "At timestamp 438.5047333333333, 'person-11198' began interacting with 'suitcase-10909'. After this event, what was the *first 'couch'* object that 'person-11198' initiated an interaction with, and at what timestamp did that interaction start?",
+        "a": "The first 'couch' object 'person-11198' initiated an interaction with after 438.5047333333333 was 'couch-11414', starting at timestamp 439.7393."
+      },
+      {
+        "q": "At timestamp 531.8980333333334, 'person-15605' started interacting with 'person-15611'. Later, at timestamp 536.5026333333334, 'person-15605' started interacting with 'handbag-15667'. Considering the entire log, what was the *last type of object* (e.g., 'person', 'bed', 'handbag') that 'person-15605' initiated an interaction with, and what was the timestamp of that initiation?",
+        "a": "The last type of object 'person-15605' initiated an interaction with was a 'handbag' ('handbag-15667') at timestamp 536.5026333333334."
+      }
+    ]
+  }
+]

@@ -5,12 +5,12 @@
     "relevant_time": 0.0
   },
   {
-    "q": "TODO: another question (e.g., \"Who enters the frame after the dog appears?\")",
+    "q": "TODO: another question (e.g., \"What is the person doing with the bowl?\")",
     "a": "TODO: answer (e.g., \"the man\")",
     "relevant_time": 0.0
   },
   {
-    "q": "TODO: add as many QA pairs as needed",
+    "q": "TODO: What does the person doing with the laptop",
     "a": "TODO: short answer",
     "relevant_time": 0.0
   }
