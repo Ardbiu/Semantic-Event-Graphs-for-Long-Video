@@ -3,7 +3,7 @@
 #SBATCH --output=logs/seg_eval_%j.out
 #SBATCH --error=logs/seg_eval_%j.err
 #SBATCH --time=04:00:00
-#SBATCH --partition=mit_normal
+#SBATCH --partition=mit_normal_gpu
 #SBATCH --gres=gpu:h200:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
