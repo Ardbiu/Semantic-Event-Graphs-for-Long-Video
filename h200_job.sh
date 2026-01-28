@@ -10,7 +10,8 @@
 
 # Initialize configuration
 source /etc/profile
-module load anaconda3/2024.02-1
+# Explicitly source conda.sh from the path found on the cluster
+source /nfs/software001/home/software-r8-x86_64/spack-20230328/opt/spack/linux-rocky8-x86_64/gcc-8.5.0/anaconda3-2022.05-auh4o3tsby7ze6q6v3stn2hhvvnpoy5f/etc/profile.d/conda.sh
 conda activate seg_env
 
 echo "Job started on $(hostname) at $(date)"
