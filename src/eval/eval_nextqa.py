@@ -31,6 +31,13 @@ class NExTQAEvaluator:
         # Initialize Scene Graph Processor (for processing video frames)
         self.processor = SceneGraphProcessor(config)
         
+        # Initialize Detector
+        det_config = config.get('detection', {})
+        self.detector_model = det_config.get('model_path', 'yolov8l.pt')
+        print(f"Loading detector: {self.detector_model}...")
+        from ultralytics import YOLO
+        self.detector = YOLO(self.detector_model)
+        
         # Cache for processed graphs (video_id -> TemporalSceneGraph)
         # In a full run, we might want to save these to disk.
         self.graph_cache = {}
@@ -59,12 +66,8 @@ class NExTQAEvaluator:
         # Checking `scripts/process_video.py`... 
         # Actually, let's instantiate a fresh TSG from events.
         
-        # Initialize Detector
-        det_config = config.get('detection', {})
-        self.detector_model = det_config.get('model_path', 'yolov8l.pt')
-        print(f"Loading detector: {self.detector_model}...")
-        from ultralytics import YOLO
-        self.detector = YOLO(self.detector_model)
+        # Initialize Detector (Done in __init__)
+        # det_config = self.config.get('detection', {})
         
         # Open Video
         import cv2
