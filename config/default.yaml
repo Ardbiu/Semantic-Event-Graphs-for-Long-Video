@@ -1,0 +1,65 @@
+# Default Configuration for CVC 2026 Upgrade
+
+defaults:
+  - _self_
+
+experiment:
+  name: "cvc_upgrade_v1"
+  seed: 42
+  device: "auto"  # auto, cuda, mps, cpu
+
+# Data Paths
+data:
+  videos_dir: "data/videos"
+  models_dir: "data/models"
+  output_dir: "outputs"
+  logs_dir: "outputs/logs"
+  results_file: "outputs/final_results.json"
+
+# Stage 1: Detection & Tracking
+detection:
+  model: "yolo11n.pt"  # or yolo11x.pt for better accuracy
+  conf_threshold: 0.25
+  iou_threshold: 0.45
+  tracker_persist: true
+
+# Stage 2: Interaction Event Generation (The new method)
+interaction:
+  # Method: 'proximity' (baseline) or 'semantic_gated' (ours)
+  method: "semantic_gated" 
+  
+  # Base proximity settings
+  distance_threshold: 200.0  # pixels, maybe normalize later
+  
+  # Semantic Gated Event Scoring
+  # S = w1*Prox + w2*Motion + w3*Semantic + w4*Action
+  weights:
+    w1_proximity: 0.4
+    w2_motion: 0.3
+    w3_semantic: 0.3
+    w4_action: 0.0  # Disabled for speed by default
+  
+  thresholds:
+    tau_start: 0.6  # Event starts when S > tau
+    tau_end: 0.4    # Event ends when S < tau_end (hysteresis)
+    min_duration_frames: 5
+    end_buffer_frames: 5
+
+  # Semantic Compatibility
+  semantic:
+    use_embedding: true
+    embedding_model: "all-MiniLM-L6-v2" # Fast local model
+
+# Stage 3: Graph Construction & Pruning
+graph:
+  pruning:
+    hop_depth: 2
+    top_k_neighbors: 5
+    use_sematic_expansion: true # vs lexical only
+
+# Stage 4: Evaluation
+evaluation:
+  dataset: "generated" # or 'nextqa', 'star'
+  judge_model: "gemini-1.5-pro" # Stronger judge
+  answer_model: "gemini-1.5-flash" # Faster answer
+  num_bootstrap_samples: 1000

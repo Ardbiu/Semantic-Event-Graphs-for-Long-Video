@@ -14,6 +14,9 @@ This repository implements the **Temporal Scene Graph** approach for efficient l
 | **Long Context** (Full) | ~40,390 | 62.5% | - |
 | **HyperGraph** (Ours) | **~3,466** | **65.0%** | **91.4%** |
 
+![Accuracy vs Token Usage](outputs/figure_2_accuracy_vs_tokens.png)
+_Figure 2: Performance Trade-off (Accuracy vs. Input Tokens). The plot illustrates the Pareto efficiency of the Semantic Event Graph (HyperGraph) method. While the Short-Context model is cheap but inaccurate, the Full Log Baseline is accurate but requires processing over 40k tokens. TSG effective breaks the traditional trade-off._
+
 ## 📂 Directory Structure
 
 ```

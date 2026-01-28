@@ -2,6 +2,9 @@ import json
 import os
 import time
 import sys
+import yaml
+import argparse
+
 # Allow importing from src (root directory)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -18,21 +21,34 @@ else:
 
 MODEL_NAME = 'gemini-2.5-flash'
 
-def get_model():
+def load_config(config_path):
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+def get_model(config=None):
+    model_name = MODEL_NAME
+    if config:
+        model_name = config.get('evaluation', {}).get('answer_model', MODEL_NAME)
+    
     try:
-        return genai.GenerativeModel(MODEL_NAME)
+        return genai.GenerativeModel(model_name)
     except:
         return genai.GenerativeModel('gemini-1.5-flash')
 
 def events_to_narrative(events):
     narrative = []
     for ev in events:
-        line = f"[{ev.get('timestamp', 0):.1f}s] {ev.get('subject')} {ev.get('type')} {ev.get('object')}"
+        # Include confidence if available
+        conf_str = ""
+        if 'confidence' in ev:
+             conf_str = f" (conf:{ev['confidence']:.2f})"
+        
+        line = f"[{ev.get('timestamp', 0):.1f}s] {ev.get('subject')} {ev.get('type')} {ev.get('object')}{conf_str}"
         narrative.append(line)
     return "\n".join(narrative)
 
-def generate_answer(narrative, question):
-    model = get_model()
+def generate_answer(narrative, question, config=None):
+    model = get_model(config)
     prompt = f"""
     You are an expert video analyst.
     Task: Answer the question based strictly on the provided Event Log.
@@ -73,82 +89,90 @@ def judge_with_retry(question, ground_truth, ans):
     # Retry logic for the judge
     for attempt in range(3):
         try:
-            # We assume evaluate_accuracy handles its own basic errors but capturing here for network/timeouts
-            # NOTE: evaluate_accuracy currently catches Exception and returns False. 
-            # We might rely on it, but to truly retry on 504 WE NEED TO CALL IT.
-            # However, since evaluate_accuracy suppresses the exception, we can't catch it here easily
-            # unless we modify llm_judge.py or if evaluate_accuracy prints the error.
-            # Given the user constraints, we will just call it. Use LLM judge improvements if possible.
-            # Actually, to properly retry, we should probably update llm_judge.py, but let's assume
-            # simple transient errors might return False.
-            # Wait, if evaluate_accuracy returns False on error, we can't distinguish "Wrong Answer" from "API Error".
-            # For now, let's just proceed. The user mostly asked for retry in generate_answer.
-            # I will trust evaluate_accuracy for now, or maybe I should improve it.
             return evaluate_accuracy(question, ground_truth, ans)
         except Exception:
             time.sleep(2)
     return False
 
 # Strategy 1: Short Context (Last 30s)
-def run_short_context(events, question):
+def run_short_context(events, question, config=None):
     if not events:
         return "No events", 0, 0
-    max_time = max(ev.get("timestamp", 0) for ev in events)
+    max_time = max((ev.get("timestamp", 0) for ev in events), default=0)
     cutoff = max_time - 30.0
     recent_events = [ev for ev in events if ev.get("timestamp", 0) >= cutoff]
     narrative = events_to_narrative(recent_events)
-    return generate_answer(narrative, question)
+    return generate_answer(narrative, question, config)
 
 # Strategy 2: Long Context (All Events)
-def run_long_context(events, question):
+def run_long_context(events, question, config=None):
     narrative = events_to_narrative(events)
-    return generate_answer(narrative, question)
+    return generate_answer(narrative, question, config)
 
 # Strategy 3: HyperGraph (Pruned)
-def run_hypergraph(graph, question):
-    pruned_result = graph.prune_and_retrieve(question)
+def run_hypergraph(graph, question, config=None):
+    # Pass config to prune_and_retrieve so it can use hop_depth/top_k
+    pruned_result = graph.prune_and_retrieve(question, config=config)
     
     # DEBUG PRINT as requested
     print(f"    DEBUG: Pruned from {len(graph.all_events)} events to {len(pruned_result.events)} events.")
     
     narrative = events_to_narrative(pruned_result.events)
-    return generate_answer(narrative, question)
+    return generate_answer(narrative, question, config)
 
-def main():
-    benchmark_path = os.path.join(os.path.dirname(__file__), "../outputs/benchmark_data.json")
-    if not os.path.exists(benchmark_path):
-        print(f"benchmark_data.json not found at {benchmark_path}")
+def main(config_path="config/default.yaml"):
+    print(f"Loading config from {config_path}...")
+    try:
+        config = load_config(config_path)
+    except Exception:
+        config = {}
+        print("Using default/empty config.")
+
+    # Override results file path from config
+    results_file = config.get('data', {}).get('results_file', 'outputs/final_results.json')
+    benchmark_file = config.get('data', {}).get('benchmark_file', 'outputs/benchmark_data.json')
+    
+    # Also support old path if config missing
+    if not os.path.exists(benchmark_file):
+        benchmark_file = os.path.join(os.path.dirname(__file__), "../outputs/benchmark_data.json")
+
+    if not os.path.exists(benchmark_file):
+        print(f"benchmark_data.json not found at {benchmark_file}")
         return
 
-    with open(benchmark_path, "r") as f:
+    with open(benchmark_file, "r") as f:
         benchmark_data = json.load(f)
 
-    # Helper to load graph cache
     graph_cache = {}
-
     results = []
-    
     total_q = 0
     
-    # Accumulators for summary
     stats = {
         "Short": {"correct": 0, "tokens": 0, "time": 0},
         "Long": {"correct": 0, "tokens": 0, "time": 0},
         "HyperGraph": {"correct": 0, "tokens": 0, "time": 0}
     }
 
+    logs_dir = config.get('data', {}).get('logs_dir', 'outputs/logs')
+    # Resolve relative path
+    logs_full_path = os.path.join(os.path.dirname(__file__), "..", logs_dir)
+
     for item in benchmark_data:
         source_log = item["source_log"]
         qa_pairs = item["qa_pairs"]
-        log_path = os.path.join(os.path.dirname(__file__), "../outputs/logs", source_log)
+        log_path = os.path.join(logs_full_path, source_log)
         
         if not os.path.exists(log_path):
-            print(f"Log file not found: {log_path}, skipping...")
-            continue
+             # Try simple name if path construction failed
+             log_path_simple = os.path.join(os.path.dirname(__file__), "../outputs/logs", source_log)
+             if os.path.exists(log_path_simple):
+                 log_path = log_path_simple
+             else:
+                 print(f"Log file not found: {log_path}, skipping...")
+                 continue
             
         print(f"\nProcessing {source_log} ({len(qa_pairs)} questions)...")
         
-        # Load Graph / Events once per video
         if source_log not in graph_cache:
             tsg = TemporalSceneGraph()
             tsg.load_from_json(log_path)
@@ -161,7 +185,6 @@ def main():
             question = qa["q"]
             ground_truth = qa["a"]
             
-            # Skip empty logs questions if they snuck in
             if "empty" in question.lower():
                 continue
 
@@ -170,9 +193,9 @@ def main():
 
             # Run 3 Models
             models = [
-                ("Short", lambda: run_short_context(all_events, question)),
-                ("Long", lambda: run_long_context(all_events, question)),
-                ("HyperGraph", lambda: run_hypergraph(tsg, question))
+                ("Short", lambda: run_short_context(all_events, question, config)),
+                ("Long", lambda: run_long_context(all_events, question, config)),
+                ("HyperGraph", lambda: run_hypergraph(tsg, question, config))
             ]
             
             row = {
@@ -192,7 +215,6 @@ def main():
                     "correct": is_correct
                 }
                 
-                # Update Stats
                 if is_correct:
                     stats[name]["correct"] += 1
                 stats[name]["tokens"] += tokens
@@ -203,7 +225,8 @@ def main():
             results.append(row)
 
     # Save Detailed Results
-    with open(os.path.join(os.path.dirname(__file__), "../outputs/final_results.json"), "w") as f:
+    output_path = os.path.join(os.path.dirname(__file__), "..", results_file)
+    with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
 
     # Print Summary Table
@@ -218,7 +241,11 @@ def main():
             avg_time = stats[name]["time"] / total_q
             print(f"{name:<15} | {accuracy:6.1f}%    | {avg_tokens:10.1f}   | {avg_time:10.2f}")
     print("="*60)
-    print(f"Detailed results saved to final_results.json. Total Questions: {total_q}")
+    print(f"Detailed results saved to {results_file}. Total Questions: {total_q}")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, default="config/default.yaml", help="Path to config file")
+    args = parser.parse_args()
+    
+    main(args.config)
