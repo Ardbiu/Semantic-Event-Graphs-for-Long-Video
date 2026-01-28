@@ -96,6 +96,9 @@ class NExTQAEvaluator:
                             cls_id = int(box.cls[0].item())
                             label = results[0].names[cls_id]
                             bbox = box.xyxy[0].tolist()
+                            if len(bbox) != 4:
+                                print(f"DEBUG: Invalid bbox format: {bbox}")
+                            
                             track_id = int(box.id[0].item())
                             
                             detections.append({
