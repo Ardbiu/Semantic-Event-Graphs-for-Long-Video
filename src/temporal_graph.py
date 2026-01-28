@@ -38,20 +38,19 @@ class TemporalSceneGraph:
                     raw_event=event # Store the raw event for easy retrieval
                 )
 
-    def prune_and_retrieve(self, user_query, threshold=0.1):
+    def prune_and_retrieve(self, user_query, config=None):
         """
-        Retrieves events based on the user query.
+        Retrieves events based on the user query and configuration.
+        """
+        if config is None:
+            config = {}
         
-        Step 1 (Anchors): specific objects in the query.
-        Step 2 (Expansion): Find all edges connected to those anchor nodes.
-        Step 3 (Fallback): Jaccard similarity.
-        """
+        pruning_cfg = config.get('graph', {}).get('pruning', {})
+        hop_depth = pruning_cfg.get('hop_depth', 1)
+        top_k = pruning_cfg.get('top_k_neighbors', 5) # Per anchor
+        # threshold = pruning_cfg.get('jaccard_threshold', 0.1) # Unused if doing strict anchor expansion
+        
         user_query_lower = user_query.lower()
-        query_tokens = set(user_query_lower.split())
-        
-        # Step 1: Identify Anchors
-        # Step 1: Identify Anchors
-        anchors = []
         
         # Helper to extract class from node ID (e.g., "person-1" -> "person")
         def get_class(node_name):
@@ -60,78 +59,93 @@ class TemporalSceneGraph:
                 return "-".join(parts[:-1]).lower()
             return None
 
-        specific_matches = []
-        generic_matches = []
-        classes_with_specifics = set()
-
+        # Step 1: Identify Anchors
+        anchors = set()
+        
+        # 1.1 Exact ID match (Optional but good)
         for node in self.graph.nodes():
-            node_lower = node.lower()
-            
-            # Check for EXACT (Specific) Match of the ID
-            # We want to ensure we match "person-1" but not "person-10" if query is "person-1"
-            # Simple substring check 'node.lower() in user_query_lower' is risky for "person-1" inside "person-10"
-            # But standard tokenization is better.
-            # Let's stick to the current string check but be mindful, or use token boundaries if needed.
-            # Given the loop is over graph nodes, if "person-10" is in graph, and query has "person-10", it matches.
-            
-            if node_lower in user_query_lower:
-                specific_matches.append(node)
-                cls = get_class(node)
-                if cls:
-                    classes_with_specifics.add(cls)
-            else:
-                # Check for Generic Class Match
-                cls = get_class(node)
-                if cls and cls in user_query_lower:
-                    generic_matches.append(node)
-
-        # Merge Phase:
-        # 1. Always include specific matches
-        anchors.extend(specific_matches)
+            if node.lower() in user_query_lower: # Simple substring check
+                 anchors.add(node)
         
-        # 2. Include generic matches ONLY if their class was NOT covered by a specific match
-        for node in generic_matches:
-            cls = get_class(node)
-            if cls not in classes_with_specifics:
-                anchors.append(node)
+        # 1.2 Class Semantic Match (Simple substring for now, or embeddings later)
+        if not anchors:
+             # Fallback to seeking any nodes whose class is in query
+             for node in self.graph.nodes():
+                 cls = get_class(node)
+                 if cls and cls in user_query_lower:
+                     anchors.add(node)
         
+        # Step 2: Expansion (Multi-hop)
+        relevant_nodes = set(anchors)
+        current_frontier = set(anchors)
+        
+        for hop in range(hop_depth):
+            next_frontier = set()
+            for node in current_frontier:
+                # Outgoing edges
+                out_edges = self.graph.out_edges(node, data=True)
+                # Incoming edges
+                in_edges = self.graph.in_edges(node, data=True)
+                
+                # Combine neighbors
+                neighbors = []
+                for u, v, data in out_edges:
+                    neighbors.append((v, data))
+                for u, v, data in in_edges:
+                    neighbors.append((u, data))
+                
+                # Sort neighbors by confidence/interaction strength if available
+                # Assuming data['raw_event'].get('confidence', 1.0)
+                neighbors.sort(key=lambda x: x[1].get('raw_event', {}).get('confidence', 0.0), reverse=True)
+                
+                # Top-K
+                subset = neighbors[:top_k]
+                for neigh_node, _ in subset:
+                    if neigh_node not in relevant_nodes:
+                        relevant_nodes.add(neigh_node)
+                        next_frontier.add(neigh_node)
+            
+            current_frontier = next_frontier
+            if not current_frontier:
+                break
+        
+        # Step 3: Collect Events
+        # Retrieve all edges between relevant nodes
         relevant_events = []
         
-        if anchors:
-            # Step 2: Expansion
-            # Find edges connected to anchors
-            for u, v, key, data in self.graph.edges(keys=True, data=True):
-                if u in anchors or v in anchors:
-                    if 'raw_event' in data:
-                        relevant_events.append(data['raw_event'])
-        else:
-            # Step 3: Fallback (Jaccard similarity)
-            for event in self.all_events:
-                # Construct a string representation of the event
-                event_str = f"{event.get('type', '')} {event.get('subject', '')} {event.get('object', '')}".lower()
-                event_tokens = set(event_str.split())
-                
-                intersection = query_tokens.intersection(event_tokens)
-                union = query_tokens.union(event_tokens)
-                
-                if not union:
-                    jaccard_score = 0.0
-                else:
-                    jaccard_score = len(intersection) / len(union)
-                
-                if jaccard_score >= threshold:
-                    relevant_events.append(event)
-
-        # Deduplicate events based on content (simple approach: use json string representation)
-        seen = set()
-        unique_events = []
-        for ev in relevant_events:
-            ev_str = json.dumps(ev, sort_keys=True)
-            if ev_str not in seen:
-                seen.add(ev_str)
-                unique_events.append(ev)
+        # We want edges where BOTH or AT LEAST ONE? 
+        # Usually subgraph induced by valid nodes. 
+        # But for "Expansion", we usually want all edges TOUCHING the subgraph.
+        # Let's collect edges connected to relevant nodes (which includes the frontier).
         
-        relevant_events = unique_events
+        # Just grab edges in the subgraph induced by relevant nodes
+        # subgraph = self.graph.subgraph(relevant_nodes)
+        # for u, v, data in subgraph.edges(data=True):
+        #      if 'raw_event' in data:
+        #           relevant_events.append(data['raw_event'])
+                   
+        # Actually, strict subgraph might miss "person-1 interacting with unrelated-object" if unrelated-object wasn't picked.
+        # But if hop logic works, they should be picked.
+        # Let's stick to edges connected to any node in relevant_nodes, but duplicated check needed.
+        
+        seen_events = set()
+        for u, v, key, data in self.graph.edges(keys=True, data=True):
+            if u in relevant_nodes or v in relevant_nodes:
+                if 'raw_event' in data:
+                    # Dedupe
+                    ev = data['raw_event']
+                    ev_str = json.dumps(ev, sort_keys=True)
+                    if ev_str not in seen_events:
+                        relevant_events.append(ev)
+                        seen_events.add(ev_str)
+        
+        # Fallback if empty?
+        if not relevant_events and not anchors:
+            # Full retrieval or fallback
+            return QueryResult([], 0.0)
+
+        # Sort by timestamp
+        relevant_events.sort(key=lambda x: x['timestamp'])
 
         # Calculate efficiency
         total_events = len(self.all_events)
