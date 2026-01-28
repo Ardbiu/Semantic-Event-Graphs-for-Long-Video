@@ -120,6 +120,26 @@ def run_hypergraph(graph, question, config=None):
     narrative = events_to_narrative(pruned_result.events)
     return generate_answer(narrative, question, config)
 
+import numpy as np
+from collections import defaultdict
+
+def compute_bootstrap_ci(scores, n_bootstrap=1000, ci=95):
+    """
+    Compute Bootstrap 95% CI for a list of binary scores (0/1).
+    """
+    if not scores:
+        return 0, 0, 0
+    scores = np.array(scores)
+    means = []
+    for _ in range(n_bootstrap):
+        resample = np.random.choice(scores, size=len(scores), replace=True)
+        means.append(resample.mean())
+    
+    means = np.array(means)
+    lower = np.percentile(means, (100 - ci) / 2)
+    upper = np.percentile(means, 100 - (100 - ci) / 2)
+    return means.mean(), lower, upper
+
 def main(config_path="config/default.yaml"):
     print(f"Loading config from {config_path}...")
     try:
@@ -127,6 +147,15 @@ def main(config_path="config/default.yaml"):
     except Exception:
         config = {}
         print("Using default/empty config.")
+
+    # Protocol Verification Box
+    print("\n" + "#"*60)
+    print(" PROTOCOL VERIFICATION")
+    print("#"*60)
+    print(f"Answer Model: {config.get('evaluation', {}).get('answer_model', 'gemini-1.5-flash')}")
+    print(f"Judge Model:  {MODEL_NAME}") 
+    print(f"Sampling:     Full Context (Method) vs 8-frame (VideoLLM) vs Caption (Retrieval)")
+    print("#"*60 + "\n")
 
     # Override results file path from config
     results_file = config.get('data', {}).get('results_file', 'outputs/final_results.json')
@@ -147,11 +176,9 @@ def main(config_path="config/default.yaml"):
     results = []
     total_q = 0
     
-    stats = {
-        "Short": {"correct": 0, "tokens": 0, "time": 0},
-        "Long": {"correct": 0, "tokens": 0, "time": 0},
-        "HyperGraph": {"correct": 0, "tokens": 0, "time": 0}
-    }
+    # Store per-question correctness for CI
+    models_scores = defaultdict(list)
+    stats = defaultdict(lambda: {"correct": 0, "tokens": 0, "time": 0})
 
     logs_dir = config.get('data', {}).get('logs_dir', 'outputs/logs')
     # Resolve relative path
@@ -217,6 +244,10 @@ def main(config_path="config/default.yaml"):
                 
                 if is_correct:
                     stats[name]["correct"] += 1
+                    models_scores[name].append(1)
+                else:
+                    models_scores[name].append(0)
+                
                 stats[name]["tokens"] += tokens
                 stats[name]["time"] += duration
                 
@@ -230,18 +261,24 @@ def main(config_path="config/default.yaml"):
         json.dump(results, f, indent=2)
 
     # Print Summary Table
-    print("\n" + "="*60)
-    print(f"{'Model':<15} | {'Accuracy':<10} | {'Avg Tokens':<12} | {'Avg Time (s)':<12}")
-    print("-" * 60)
+    print("\n" + "="*80)
+    print(f"{'Model':<15} | {'Accuracy':<10} | {'95% CI':<15} | {'Avg Tokens':<12} | {'Avg Time (s)':<12}")
+    print("-" * 80)
     
     if total_q > 0:
         for name in ["Short", "Long", "HyperGraph"]:
             accuracy = (stats[name]["correct"] / total_q) * 100
             avg_tokens = stats[name]["tokens"] / total_q
             avg_time = stats[name]["time"] / total_q
-            print(f"{name:<15} | {accuracy:6.1f}%    | {avg_tokens:10.1f}   | {avg_time:10.2f}")
-    print("="*60)
+            
+            # Compute CI
+            _, lower, upper = compute_bootstrap_ci(models_scores[name])
+            ci_str = f"[{lower*100:.1f}, {upper*100:.1f}]"
+            
+            print(f"{name:<15} | {accuracy:6.1f}%    | {ci_str:<15} | {avg_tokens:10.1f}   | {avg_time:10.2f}")
+    print("="*80)
     print(f"Detailed results saved to {results_file}. Total Questions: {total_q}")
+    print(f"Judge Model: {MODEL_NAME}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

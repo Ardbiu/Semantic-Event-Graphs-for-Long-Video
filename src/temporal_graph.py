@@ -57,106 +57,99 @@ class TemporalSceneGraph:
             parts = node_name.split('-')
             if len(parts) > 1:
                 return "-".join(parts[:-1]).lower()
-            return None
+        query_tokens = set(user_query_lower.split())
+        
+    def prune_and_retrieve(self, user_query, threshold=0.1, config=None):
+        """
+        Prune graph to retrieve relevant subgraph for the query.
+        """
+        user_query_lower = user_query.lower()
+        
+        # Configurable params
+        hop_depth = 1
+        top_k = 5
+        if config:
+            hop_depth = config.get('graph', {}).get('pruning', {}).get('hop_depth', 1)
+            top_k = config.get('graph', {}).get('pruning', {}).get('top_k_neighbors', 5)
 
-        # Step 1: Identify Anchors
+        # 1. Anchor Identification
         anchors = set()
-        
-        # 1.1 Exact ID match (Optional but good)
         for node in self.graph.nodes():
-            if node.lower() in user_query_lower: # Simple substring check
-                 anchors.add(node)
-        
-        # 1.2 Class Semantic Match (Simple substring for now, or embeddings later)
-        if not anchors:
-             # Fallback to seeking any nodes whose class is in query
-             for node in self.graph.nodes():
-                 cls = get_class(node)
-                 if cls and cls in user_query_lower:
-                     anchors.add(node)
-        
-        # Step 2: Expansion (Multi-hop)
+            # Simple lexical matching for anchors
+            node_label = str(node).lower() 
+            if node_label in user_query_lower:
+                anchors.add(node)
+                
         relevant_nodes = set(anchors)
+        
+        # 2. Expansion (Multi-hop)
         current_frontier = set(anchors)
         
         for hop in range(hop_depth):
             next_frontier = set()
             for node in current_frontier:
-                # Outgoing edges
-                out_edges = self.graph.out_edges(node, data=True)
-                # Incoming edges
-                in_edges = self.graph.in_edges(node, data=True)
+                # Get neighbors with edge data
+                # We want to identify neighbors with strongest "Interaction Confidence"
+                # Edge(u, v) -> data['max_confidence'] ideally, or aggregate from events
                 
-                # Combine neighbors
                 neighbors = []
-                for u, v, data in out_edges:
-                    neighbors.append((v, data))
-                for u, v, data in in_edges:
-                    neighbors.append((u, data))
+                # Check outgoing
+                if self.graph.has_node(node):
+                    for nbr in self.graph.neighbors(node):
+                        # Calculate scores
+                        score = 0.0
+                        # Multigraph: multiple edges possible
+                        edge_data = self.graph.get_edge_data(node, nbr)
+                        # NetworkX MultiDiGraph get_edge_data returns {key: {attr}}
+                        if edge_data:
+                            for key, attrs in edge_data.items():
+                                ev = attrs.get('raw_event', {})
+                                conf = ev.get('confidence', 0.0)
+                                if conf > score:
+                                    score = conf
+                        neighbors.append((nbr, score))
                 
-                # Sort neighbors by confidence/interaction strength if available
-                # Assuming data['raw_event'].get('confidence', 1.0)
-                neighbors.sort(key=lambda x: x[1].get('raw_event', {}).get('confidence', 0.0), reverse=True)
+                # Sort by score
+                neighbors.sort(key=lambda x: x[1], reverse=True)
                 
-                # Top-K
+                # Top k
                 subset = neighbors[:top_k]
-                for neigh_node, _ in subset:
-                    if neigh_node not in relevant_nodes:
-                        relevant_nodes.add(neigh_node)
-                        next_frontier.add(neigh_node)
+                for nbr, _ in subset:
+                    if nbr not in relevant_nodes:
+                        relevant_nodes.add(nbr)
+                        next_frontier.add(nbr)
             
             current_frontier = next_frontier
             if not current_frontier:
                 break
+                
+        # 3. Subgraph Extraction & Event Collection
+        subgraph = self.graph.subgraph(relevant_nodes)
         
-        # Step 3: Collect Events
-        # Retrieve all edges between relevant nodes
-        relevant_events = []
+        # Collect unique events attached to these edges
+        unique_events = {} # key -> event dict
         
-        # We want edges where BOTH or AT LEAST ONE? 
-        # Usually subgraph induced by valid nodes. 
-        # But for "Expansion", we usually want all edges TOUCHING the subgraph.
-        # Let's collect edges connected to relevant nodes (which includes the frontier).
-        
-        # Just grab edges in the subgraph induced by relevant nodes
-        # subgraph = self.graph.subgraph(relevant_nodes)
-        # for u, v, data in subgraph.edges(data=True):
-        #      if 'raw_event' in data:
-        #           relevant_events.append(data['raw_event'])
-                   
-        # Actually, strict subgraph might miss "person-1 interacting with unrelated-object" if unrelated-object wasn't picked.
-        # But if hop logic works, they should be picked.
-        # Let's stick to edges connected to any node in relevant_nodes, but duplicated check needed.
-        
-        seen_events = set()
-        for u, v, key, data in self.graph.edges(keys=True, data=True):
-            if u in relevant_nodes or v in relevant_nodes:
-                if 'raw_event' in data:
-                    # Dedupe
-                    ev = data['raw_event']
-                    ev_str = json.dumps(ev, sort_keys=True)
-                    if ev_str not in seen_events:
-                        relevant_events.append(ev)
-                        seen_events.add(ev_str)
-        
-        # Fallback if empty?
-        if not relevant_events and not anchors:
-            # Full retrieval or fallback
-            return QueryResult([], 0.0)
+        for u, v, k, data in subgraph.edges(keys=True, data=True):
+             if 'raw_event' in data:
+                 ev = data['raw_event']
+                 # Dedupe by timestamp/subject/object hash or just ID if we had one.
+                 # Using timestamp+subj+obj as unique key
+                 key_str = f"{ev.get('timestamp')}_{ev.get('subject')}_{ev.get('object')}_{ev.get('type')}"
+                 unique_events[key_str] = ev
 
-        # Sort by timestamp
+        relevant_events = list(unique_events.values())
         relevant_events.sort(key=lambda x: x['timestamp'])
 
-        # Calculate efficiency
-        total_events = len(self.all_events)
-        retrieved_count = len(relevant_events)
-        
-        if total_events > 0:
-            compression_ratio = 1.0 - (retrieved_count / total_events)
-        else:
-            compression_ratio = 0.0
+        # Compression calculation
+        total_events = len(self.all_events) or 1
+        compression_ratio = 1.0 - (len(relevant_events) / total_events)
 
-        return QueryResult(relevant_events, compression_ratio)
+        class PrunedResult:
+            def __init__(self, events, ratio):
+                self.events = events
+                self.compression_ratio = ratio
+                
+        return PrunedResult(relevant_events, compression_ratio)
 
 if __name__ == "__main__":
     # Create dummy event_log.json

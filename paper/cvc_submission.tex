@@ -8,6 +8,7 @@
 \usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{caption}
+\usepackage{tcolorbox}
 
 % Improve wrapping of URLs
 \usepackage[pagebackref=true,breaklinks=true,letterpaper=true,colorlinks,bookmarks=false]{hyperref}
@@ -69,6 +70,20 @@ We construct a Temporal Scene Graph where nodes are object instances and edges a
 
 \subsection{Setup}
 We evaluate on a curated subset of [Benchmark Name]. 
+
+\begin{tcolorbox}[title=Baseline Protocol, colback=gray!10, colframe=black!70]
+\small
+\textbf{Input Budget}: All models limited to equivalent frame budgets or context length. \\
+\textbf{Sampling}: 
+\begin{itemize}
+    \item Video-LLM: 8 frames uniform (standard).
+    \item Retrieval: 1 frame/sec captioning.
+    \item SEG (Ours): All detected frames processed, pruned dynamic subgraph context.
+\end{itemize}
+\textbf{Inference Model}: Gemini 1.5 Flash (for R1/R2/SEG). \\
+\textbf{Judge Model}: Gemini 2.5 Flash (Independent).
+\end{tcolorbox}
+
 \textbf{Baselines}: 
 1) \textit{Video-LLaVA-7B}: A strong open-source Video-LLM.
 2) \textit{Retrieval (R1)}: Caption-based retrieval.
