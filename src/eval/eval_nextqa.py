@@ -11,8 +11,9 @@ from collections import defaultdict
 from src.datasets.nextqa import NExTQA
 from src.graphmemory.scene_graph_processor import SceneGraphProcessor
 from src.temporal_graph import TemporalSceneGraph
-from src.utils.profiler import Profiler
+from src.utils.profiler import profiler
 import yaml
+import time
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
@@ -86,7 +87,9 @@ class NExTQAEvaluator:
             # Process every Nth frame
             if frame_idx % self.config.get('detection', {}).get('sample_rate', 5) == 0:
                 # Run Tracking
+                t0 = time.time()
                 results = self.detector.track(frame, persist=True, verbose=False)
+                profiler.log('detection', time.time() - t0, video=video_id)
                 
                 detections = []
                 if results and results[0].boxes:
@@ -108,7 +111,9 @@ class NExTQAEvaluator:
                             })
                             
                 timestamp = frame_idx / fps if fps > 0 else 0.0
+                t0 = time.time()
                 self.processor.update(detections, timestamp, frame_idx)
+                profiler.log('graph_update', time.time() - t0, video=video_id)
                 
             frame_idx += 1
         cap.release()
@@ -186,15 +191,19 @@ class NExTQAEvaluator:
                 
                 # 2. Retrieve Context
                 # Using 1-hop pruning strategy
+                t0 = time.time()
                 pruned_result = tsg.prune_and_retrieve(question, config=self.config)
                 context_text = self.events_to_text(pruned_result.events)
+                profiler.log('retrieval', time.time() - t0, video=video_id)
                 
                 if not context_text: 
                     context_text = "No relevant events found."
                 
                 # 3. Score Candidates
+                t0 = time.time()
                 scores = self.score_candidates(context_text, candidates)
                 prediction = np.argmax(scores)
+                profiler.log('scoring', time.time() - t0, video=video_id)
                 
                 if prediction == ground_truth:
                     correct += 1
