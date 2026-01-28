@@ -59,7 +59,14 @@ class NExTQAEvaluator:
         # Checking `scripts/process_video.py`... 
         # Actually, let's instantiate a fresh TSG from events.
         
-        # Assuming we run inference on the fly:
+        # Initialize Detector
+        det_config = config.get('detection', {})
+        self.detector_model = det_config.get('model_path', 'yolov8l.pt')
+        print(f"Loading detector: {self.detector_model}...")
+        from ultralytics import YOLO
+        self.detector = YOLO(self.detector_model)
+        
+        # Open Video
         import cv2
         cap = cv2.VideoCapture(video_path)
         frame_idx = 0
@@ -75,7 +82,28 @@ class NExTQAEvaluator:
             
             # Process every Nth frame
             if frame_idx % self.config.get('detection', {}).get('sample_rate', 5) == 0:
-                self.processor.update(frame, frame_idx)
+                # Run Tracking
+                results = self.detector.track(frame, persist=True, verbose=False)
+                
+                detections = []
+                if results and results[0].boxes:
+                    for box in results[0].boxes:
+                        if box.id is not None:
+                            # Format: id, label, bbox
+                            cls_id = int(box.cls[0].item())
+                            label = results[0].names[cls_id]
+                            bbox = box.xyxy[0].tolist()
+                            track_id = int(box.id[0].item())
+                            
+                            detections.append({
+                                "id": track_id,
+                                "label": label,
+                                "bbox": bbox
+                            })
+                            
+                timestamp = frame_idx / fps if fps > 0 else 0.0
+                self.processor.update(detections, timestamp, frame_idx)
+                
             frame_idx += 1
         cap.release()
         
