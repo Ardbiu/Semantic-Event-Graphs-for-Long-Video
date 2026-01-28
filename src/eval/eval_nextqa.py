@@ -113,7 +113,7 @@ class NExTQAEvaluator:
             frame_idx += 1
         cap.release()
         
-        events = self.processor.get_events()
+        events = self.processor.event_log
         
         # Build Temporal Graph
         tsg = TemporalSceneGraph()
