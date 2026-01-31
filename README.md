@@ -1,6 +1,7 @@
 # Semantic Event Graphs for Long-Form Video Reasoning
 
-**WACV Paper Submission Codebase**
+**WACV Paper Submission Codebase (ACCEPTED) **
+Paper: https://arxiv.org/abs/2601.06097
 
 This repository implements the **Temporal Scene Graph** approach for efficient long-form video question answering. By representing video events as a structured graph and pruning irrelevant nodes based on user queries, we achieve **>90% reduction in token usage** while maintaining or improving accuracy compared to full-context baselines.
 
