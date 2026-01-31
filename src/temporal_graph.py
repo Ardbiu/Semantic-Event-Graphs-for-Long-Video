@@ -38,31 +38,14 @@ class TemporalSceneGraph:
                     raw_event=event # Store the raw event for easy retrieval
                 )
 
-    def prune_and_retrieve(self, user_query, config=None):
-        """
-        Retrieves events based on the user query and configuration.
-        """
-        if config is None:
-            config = {}
-        
-        pruning_cfg = config.get('graph', {}).get('pruning', {})
-        hop_depth = pruning_cfg.get('hop_depth', 1)
-        top_k = pruning_cfg.get('top_k_neighbors', 5) # Per anchor
-        # threshold = pruning_cfg.get('jaccard_threshold', 0.1) # Unused if doing strict anchor expansion
-        
-        user_query_lower = user_query.lower()
-        
-        # Helper to extract class from node ID (e.g., "person-1" -> "person")
-        def get_class(node_name):
-            parts = node_name.split('-')
-            if len(parts) > 1:
-                return "-".join(parts[:-1]).lower()
-        query_tokens = set(user_query_lower.split())
-        
     def prune_and_retrieve(self, user_query, threshold=0.1, config=None):
         """
         Prune graph to retrieve relevant subgraph for the query.
         """
+        # 0. Bypass for small graphs (Context is cheap)
+        if len(self.all_events) < 500:
+             return QueryResult(self.all_events, 0.0)
+
         user_query_lower = user_query.lower()
         
         # Configurable params
@@ -75,10 +58,22 @@ class TemporalSceneGraph:
         # 1. Anchor Identification
         anchors = set()
         for node in self.graph.nodes():
-            # Simple lexical matching for anchors
+            # Robust lexical matching
             node_label = str(node).lower() 
+            # Check full label "person-1"
             if node_label in user_query_lower:
                 anchors.add(node)
+            else:
+                # Check class only "person"
+                parts = node_label.split('-')
+                if len(parts) > 1:
+                    class_name = "-".join(parts[:-1]) # "traffic-light" -> "traffic-light"
+                    if class_name in user_query_lower:
+                        anchors.add(node)
+                    # Simple Synonyms
+                    if class_name in ['person', 'child', 'boy', 'girl', 'man', 'woman', 'lady']:
+                        if any(x in user_query_lower for x in ['person', 'child', 'boy', 'girl', 'man', 'woman', 'lady', 'someone', 'people']):
+                            anchors.add(node)
                 
         relevant_nodes = set(anchors)
         
@@ -144,12 +139,7 @@ class TemporalSceneGraph:
         total_events = len(self.all_events) or 1
         compression_ratio = 1.0 - (len(relevant_events) / total_events)
 
-        class PrunedResult:
-            def __init__(self, events, ratio):
-                self.events = events
-                self.compression_ratio = ratio
-                
-        return PrunedResult(relevant_events, compression_ratio)
+        return QueryResult(relevant_events, compression_ratio)
 
 if __name__ == "__main__":
     # Create dummy event_log.json
